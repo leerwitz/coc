@@ -1,0 +1,182 @@
+// общая сборка с блютуз
+#define vclucheniep 3   // регулятор корости нижний
+#define vhod_1 2        // вход 1
+#define vhod_2 4        // вход 2
+#define vclucheniel 5   // регулятор корости верхний
+#define vhod_3 6        // вход 3
+#define vhod_4 7       // вход 4
+
+int last = 0;
+int ugol = 0;
+
+#include <Servo.h>    // сервоприводы
+
+Servo servo1;
+Servo servo2;
+
+#define vhod_svetodiod 12     // светодиод на 12 выходе
+
+#include <SoftwareSerial.h>   // работа с блютуз модулем
+
+SoftwareSerial ELPRIMO(10, 11);  // 10 TX 11 RX
+
+void setup()
+{
+    Serial.begin( 9600 );
+    pinMode( vclucheniep, OUTPUT );
+    pinMode( vhod_1, OUTPUT );
+    pinMode( vhod_2, OUTPUT );
+    pinMode( vclucheniel, OUTPUT );
+    pinMode( vhod_3, OUTPUT );
+    pinMode( vhod_4, OUTPUT );
+
+
+    servo1.attach( 8 );          // сервопривод на 8 выход
+    servo2.attach( 9 );          // сервопривод на 9 выход
+
+    servo1.write( 0 );
+    servo2.write( 0 );
+    
+    pinMode( vhod_svetodiod, OUTPUT );
+    digitalWrite( vhod_svetodiod, 0 );
+
+    ELPRIMO.begin( 9600 );      // запуск передачи информации
+}
+
+void loop()
+{
+    if ( ELPRIMO.available() > 0 )
+    {
+        int i ;
+        i = ELPRIMO.read() - '0' ;
+        if ( last == -1 && i >= 0)
+        {
+            ugol *= 10;
+            ugol += i;
+        }
+        else if ( i == -2 )
+        {
+            servo1.write( ugol );
+            ugol = 0;
+            last = i;
+        }
+        else if ( i == -3 )
+        {
+            servo2.write( ugol );
+            ugol = 0;
+            last = i;
+        }
+        else if ( i == -1 )
+            last = -1;
+        else if ( i == 9 )
+        {
+            digitalWrite( vhod_svetodiod, 1 );
+            long int time = millis();
+            while ( millis() - time < 1000 ) {}
+            digitalWrite( vhod_svetodiod, 0 );
+            last = 0;
+        }
+        else if ( i == 5 )
+        {
+            digitalWrite( vhod_1, 0 );
+            digitalWrite( vhod_2, 1 );
+            digitalWrite( vhod_3, 1 );
+            digitalWrite( vhod_4, 0 );
+            analogWrite( vclucheniep, 10 );
+            analogWrite( vclucheniel, 10 );
+            last = i;
+        }
+        else if ( i == 6 )
+        {
+            digitalWrite( vhod_1, 1 );
+            digitalWrite( vhod_2, 0 );
+            digitalWrite( vhod_3, 0 );
+            digitalWrite( vhod_4, 1 );
+            analogWrite( vclucheniep, 10 );
+            analogWrite( vclucheniel, 10 );
+            last = i;
+        }
+        else if ( last == i ) {}
+        else if ( !i )
+        {
+            digitalWrite( vhod_1, 0 );
+            digitalWrite( vhod_2, 0 );
+            digitalWrite( vhod_3, 0 );
+            digitalWrite( vhod_4, 0 );
+            last = i;
+        }
+        else
+        {
+            plavno ( i, 1, 0 );
+            last = i;
+        }
+    }
+}
+
+void plavno ( int n, int p, int l )
+{
+    if ( last  < -1 || last > 3 )
+        last = 0;
+    if ( n == 4 )
+    {
+        n -= 5;
+        p = 0;
+        l = 1;
+    }
+    long int time = 0;
+    int timep = 30;               // задержка между изменениями
+    int skorostl = last * 85;
+    int skorost = n * 85;
+    if ( last * n >= 0 )
+    {
+        digitalWrite( vhod_1, p );
+        digitalWrite( vhod_2, l );
+        digitalWrite( vhod_3, p );
+        digitalWrite( vhod_4, l );
+        skorost = abs( skorost );
+        while ( abs( skorost - skorostl ) > 3 )
+        {
+            if ( millis() - time > timep )
+            {
+                time = millis();
+                if ( n > last || n < 0)
+                    skorostl += 5;
+                else if ( n < last )
+                    skorostl -= 5;
+                analogWrite( vclucheniep, skorostl );
+                analogWrite( vclucheniel, skorostl );
+            }
+        }
+    }
+    else
+    {
+        if ( last < 0 )
+            skorostl *= (-1);
+        else
+            skorost *= (-1);
+        digitalWrite( vhod_1, !p );
+        digitalWrite( vhod_2, !l );
+        digitalWrite( vhod_3, !p );
+        digitalWrite( vhod_4, !l );
+        while ( skorostl > 0 )
+            if ( millis() - time > timep )
+            {
+                time = millis();
+                skorostl -= 5;
+                analogWrite( vclucheniep, skorostl );
+                analogWrite( vclucheniel, skorostl );
+            }
+        digitalWrite( vhod_1, p );
+        digitalWrite( vhod_2, l );
+        digitalWrite( vhod_3, p );
+        digitalWrite( vhod_4, l );
+        while ( skorost - skorostl > 3 )
+            if ( millis() - time > timep )
+            {
+                time = millis();
+                skorostl += 5;
+                analogWrite( vclucheniep, skorostl );
+                analogWrite( vclucheniel, skorostl );
+            }
+    }
+}
